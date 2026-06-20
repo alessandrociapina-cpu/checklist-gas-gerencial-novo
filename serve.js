@@ -5,7 +5,7 @@
 const http   = require('http')
 const fs     = require('fs')
 const path   = require('path')
-const { exec } = require('child_process')
+const { spawn } = require('child_process')
 
 const PORT = 3001
 const BASE = '/checklist-gas-gerencial-novo'
@@ -67,10 +67,12 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log('  de instalação na barra do navegador.\n')
   console.log('  Pressione Ctrl+C para encerrar.\n')
 
-  const cmd = process.platform === 'win32'  ? `start ${url}`
-            : process.platform === 'darwin' ? `open ${url}`
-            : `xdg-open ${url}`
-  exec(cmd)
+  // Usa spawn (sem shell) em vez de exec para evitar interpretação de shell
+  const opener = process.platform === 'win32' ? 'cmd'
+               : process.platform === 'darwin' ? 'open'
+               : 'xdg-open'
+  const args   = process.platform === 'win32' ? ['/c', 'start', url] : [url]
+  spawn(opener, args, { detached: true, stdio: 'ignore' }).unref()
 })
 
 server.on('error', err => {

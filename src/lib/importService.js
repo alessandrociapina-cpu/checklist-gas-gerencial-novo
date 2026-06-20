@@ -13,6 +13,8 @@ export async function processarArquivos(arquivos) {
       const texto = await arquivo.text()
       const json = JSON.parse(texto)
 
+      // Nota: esta verificação identifica o formato do arquivo, não é um controle de segurança.
+      // Todo o conteúdo importado é tratado como dado não confiável nas funções de db.js.
       if (json.app !== 'checklist-gas-novo') {
         resultados.push({ arquivo: arquivo.name, erro: 'Formato não reconhecido (app inválido). Esperado: checklist-gas-novo.' })
         continue

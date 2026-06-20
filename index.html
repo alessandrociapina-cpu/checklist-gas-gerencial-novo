@@ -5,13 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#14532d" />
     <meta name="description" content="Consolidação e relatórios de checklists de segurança com interferência em rede de gás" />
+    <!-- Content Security Policy: restringe execução de scripts apenas à própria origem.
+         'unsafe-inline' em style-src é necessário para o Tailwind CSS.
+         data: e blob: em img-src são necessários para exibir fotos e assinaturas armazenadas em IndexedDB.
+         connect-src 'none' bloqueia qualquer chamada de rede pelo JavaScript. -->
+    <meta http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data: blob:;
+               connect-src 'none';
+               font-src 'self';
+               object-src 'none';
+               base-uri 'self';
+               form-action 'self';
+               frame-ancestors 'none';" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Gas Novo Gerencial" />
     <link rel="icon" type="image/png" href="/icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- Caminho relativo para que o Vite resolva corretamente com o base URL configurado -->
+    <link rel="manifest" href="manifest.webmanifest" />
     <title>Checklist Gás Novo — Gerencial</title>
   </head>
   <body>

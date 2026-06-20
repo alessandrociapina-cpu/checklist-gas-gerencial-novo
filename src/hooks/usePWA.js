@@ -10,7 +10,10 @@ export function usePWA() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      r && setInterval(() => r.update(), 60 * 60 * 1000)
+      // Guarda referência do interval para garantir cleanup correto
+      if (!r) return
+      const timer = setInterval(() => r.update(), 60 * 60 * 1000)
+      return () => clearInterval(timer)
     },
   })
 

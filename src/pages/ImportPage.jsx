@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { processarArquivos } from '../lib/importService'
+import { TAMANHO_MAX_ARQUIVO } from '../lib/db'
 
 export default function ImportPage({ onImportado }) {
   const [arrastando, setArrastando] = useState(false)
@@ -9,10 +10,19 @@ export default function ImportPage({ onImportado }) {
 
   async function processar(arquivos) {
     if (!arquivos.length) return
+    // Rejeita arquivos maiores que o limite antes de ler o conteúdo
+    const listaFiltrada = [...arquivos].filter(f => {
+      if (f.size > TAMANHO_MAX_ARQUIVO) {
+        setResultados([{ arquivo: f.name, erro: `Arquivo muito grande (máx. 100 MB).` }])
+        return false
+      }
+      return true
+    })
+    if (!listaFiltrada.length) return
     setProcessando(true)
     setResultados(null)
     try {
-      const res = await processarArquivos([...arquivos])
+      const res = await processarArquivos(listaFiltrada)
       setResultados(res)
     } finally {
       setProcessando(false)
