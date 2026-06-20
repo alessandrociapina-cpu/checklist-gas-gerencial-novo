@@ -1,10 +1,11 @@
-export const VERSAO = '1.0.0'
+export const VERSAO = '1.0.1'
 
 export const CHANGELOG = [
   {
-    versao: '1.0.0',
+    versao: '1.0.1',
     data: '2026-06-20',
     mudancas: [
+      'Correção de deploy para GitHub Pages',
       'Lançamento inicial do sistema gerencial para Checklist Gás Novo',
       'Importação de checklists JSON exportados pelo app Checklist Gás Novo',
       'Dashboard com cards de resumo e gráficos de atividade',
