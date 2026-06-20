@@ -107,14 +107,23 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
           </div>
         </div>
 
+        {/* Faixa de contexto do resumo */}
+        <div className="rel-resumo-ctx">
+          Resumo das verificações de segurança — interferência em rede de gás
+        </div>
+
         {/* Cards de resumo */}
         <div className="rel-resumo">
           <Card cor={pctGeral >= 80 ? 'verde' : pctGeral >= 50 ? 'laranja' : 'vermelho'}
-            valor={`${pctGeral}%`} label="Conformidade" />
-          <Card cor="azul"    valor={totalSim}  label="Sim" />
-          <Card cor="laranja" valor={totalNao}  label="Não" />
-          <Card cor="neutro"  valor={totalFotos} label="Fotos" />
-          {gas.criticidade && <Card cor={gas.criticidade === 'Alta' ? 'vermelho' : gas.criticidade === 'Média' ? 'laranja' : 'verde'} valor={gas.criticidade} label="Criticidade" />}
+            valor={`${pctGeral}%`} label="Conformidade geral" />
+          <Card cor="azul"
+            valor={`${totalSim}/${SEGURANCA_PERGUNTAS.length}`}
+            label="Verificações aprovadas" />
+          <Card cor={totalNao > 0 ? 'laranja' : 'neutro'}
+            valor={totalNao}
+            label="Não conformidades" />
+          <Card cor="neutro"  valor={totalFotos} label="Fotos registradas" />
+          {gas.criticidade && <Card cor={gas.criticidade === 'Alta' ? 'vermelho' : gas.criticidade === 'Média' ? 'laranja' : 'verde'} valor={gas.criticidade} label="Criticidade do gás" />}
         </div>
 
         {/* Dados da Obra */}
@@ -161,7 +170,7 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
         {seg.length > 0 && (
           <Secao
             titulo="Verificação de Segurança"
-            badge={`${totalSim}/${respondidas || SEGURANCA_PERGUNTAS.length} — ${pctGeral}%`}
+            badge={`${totalSim} aprovadas · ${totalNao} não conform. · ${pctGeral}% de conformidade`}
             corBadge={pctGeral >= 80 ? 'verde' : pctGeral >= 50 ? 'laranja' : 'vermelho'}
           >
             <div className="rel-barra-bg">
@@ -172,9 +181,9 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
               <thead>
                 <tr>
                   <th style={{ width: 32 }}>#</th>
-                  <th>Verificação</th>
-                  <th style={{ width: 80, textAlign: 'center' }}>Resposta</th>
-                  <th>Justificativa</th>
+                  <th>Item de verificação</th>
+                  <th style={{ width: 100, textAlign: 'center' }}>Situação</th>
+                  <th>Justificativa / Observação</th>
                 </tr>
               </thead>
               <tbody>
@@ -191,10 +200,10 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
                         <td style={{ textAlign: 'center' }}>
                           {item.resposta ? (
                             <span className={ehSim ? 'rel-badge-ok' : 'rel-badge-nok'}>
-                              {ehSim ? '✓ Sim' : '✗ Não'}
+                              {ehSim ? '✓ Aprovado' : '✗ Não conforme'}
                             </span>
                           ) : (
-                            <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>—</span>
+                            <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Não respondido</span>
                           )}
                         </td>
                         <td style={{ fontSize: '0.8rem' }}>
@@ -202,9 +211,10 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
                             <span className="rel-justificativa">⚠ {item.justificativa}</span>
                           )}
                           {ehNao && !item.justificativa && (
-                            <span style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 600 }}>Sem justificativa</span>
+                            <span style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 600 }}>⚠ Não informada — requer atenção</span>
                           )}
-                          {!ehNao && '—'}
+                          {ehSim && <span style={{ color: '#6b7280' }}>—</span>}
+                          {!ehSim && !ehNao && <span style={{ color: '#9ca3af' }}>—</span>}
                         </td>
                       </tr>
                       {fts.length > 0 && (
