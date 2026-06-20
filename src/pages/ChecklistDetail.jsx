@@ -92,9 +92,10 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
         {/* Cabeçalho */}
         <div className="rel-header">
           <div className="rel-header-logo">
-            <img src={`${import.meta.env.BASE_URL}icons/icon-96.png`} alt=""
-              style={{ width: 52, height: 52, borderRadius: 10 }} />
+            <img src={`${import.meta.env.BASE_URL}icons/sabesp-logo.png`} alt="Sabesp"
+              style={{ height: 60, width: 'auto', objectFit: 'contain' }} />
           </div>
+          <div className="rel-header-divider" />
           <div className="rel-header-info">
             <h1>Checklist de Segurança — Obras com Interferência em Rede de Gás</h1>
             <p>
@@ -317,7 +318,7 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
 
         {/* Rodapé */}
         <div className="rel-rodape">
-          Gerado em {new Date().toLocaleString('pt-BR')} · Checklist Gás Novo — Sistema Gerencial
+          Sabesp · Check-list Gás Novo — Sistema Gerencial · Gerado em {new Date().toLocaleString('pt-BR')}
         </div>
 
       </div>

@@ -15,7 +15,7 @@ export default function Layout({ pagina, onNavegar, children, onInstalar, isInst
   return (
     <div className="min-h-screen flex flex-col">
       {/* Topbar */}
-      <header className="bg-brand-900 text-white flex items-center justify-between px-4 py-3 shadow-lg">
+      <header className="bg-brand-900 text-white flex items-center justify-between px-4 py-2 shadow-lg">
         <div className="flex items-center gap-3">
           <button
             className="lg:hidden p-1 rounded hover:bg-white/10"
@@ -23,7 +23,16 @@ export default function Layout({ pagina, onNavegar, children, onInstalar, isInst
           >
             <IconHamburger />
           </button>
-          <span className="font-bold text-lg tracking-tight">Gás Novo — Gerencial</span>
+          {/* Logo Sabesp */}
+          <img
+            src={`${import.meta.env.BASE_URL}icons/icon-96.png`}
+            alt="Sabesp"
+            className="h-9 w-9 rounded-lg flex-shrink-0"
+          />
+          <div className="leading-tight">
+            <p className="font-bold text-sm tracking-tight text-white">Check-list Gás</p>
+            <p className="text-xs text-brand-300 font-medium">Gerencial</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-xs text-brand-200 hidden sm:block">Checklist de Segurança · Interferência em Rede de Gás</span>
@@ -65,7 +74,7 @@ export default function Layout({ pagina, onNavegar, children, onInstalar, isInst
                 flex items-center gap-3 px-4 py-3 text-sm font-medium text-left transition-colors
                 ${pagina === id
                   ? 'bg-brand-700 text-white'
-                  : 'text-brand-100 hover:bg-white/10'}
+                  : 'text-brand-200 hover:bg-white/10'}
               `}
             >
               <Icon className="w-5 h-5 flex-shrink-0" />

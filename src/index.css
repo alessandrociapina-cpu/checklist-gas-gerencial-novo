@@ -15,7 +15,7 @@
 
 /* ═══════════════════════════════════════════════════════
    RELATÓRIO
-   --verde: #14532d  --laranja: #f58220  --vermelho: #c5221f
+   --azul: #003B5C  --sabesp: #00AEEF  --laranja: #f58220  --vermelho: #c5221f
 ═══════════════════════════════════════════════════════ */
 
 .rel-page {
@@ -31,20 +31,33 @@
 
 /* Cabeçalho */
 .rel-header {
-  background: #14532d;
-  color: white;
+  background: white;
+  color: #003B5C;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
   padding: 16px 20px;
+  border-bottom: 4px solid #003B5C;
+}
+.rel-header-logo {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.rel-header-divider {
+  width: 1px;
+  height: 52px;
+  background: #d8dee6;
+  flex-shrink: 0;
 }
 .rel-header h1 {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   margin: 0 0 4px;
   letter-spacing: 0.01em;
+  color: #003B5C;
 }
-.rel-header p  { margin: 0; font-size: 0.8rem; opacity: .85; }
+.rel-header p  { margin: 0; font-size: 0.78rem; color: #6b7280; }
 .rel-header-info { flex: 1; }
 
 /* Cards de resumo */
@@ -71,7 +84,7 @@
 .rel-secao { border-bottom: 1px solid #d8dee6; }
 .rel-secao:last-child { border-bottom: none; }
 .rel-secao-titulo {
-  background: #166534;
+  background: #003B5C;
   color: white;
   padding: 8px 16px;
   font-size: 0.8rem;
@@ -198,7 +211,7 @@
 
   .shadow-sm, .shadow { box-shadow: none !important; }
 
-  .rel-header           { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rel-header           { -webkit-print-color-adjust: exact; print-color-adjust: exact; border-bottom: 4px solid #003B5C !important; }
   .rel-secao-titulo     { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rel-ok td, .rel-nok td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rel-card             { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
