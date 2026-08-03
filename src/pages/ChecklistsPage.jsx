@@ -8,14 +8,33 @@ export default function ChecklistsPage({ onDetalhe, onImprimir }) {
   const [fiscal, setFiscal] = useState('')
   const [fiscais, setFiscais] = useState([])
   const [ordenar, setOrdenar] = useState('data_desc')
+  const [confirmarExclusao, setConfirmarExclusao] = useState(null) // checklist a excluir
+  const [excluindo, setExcluindo] = useState(false)
 
   useEffect(() => {
+    carregarChecklists()
+  }, [])
+
+  function carregarChecklists() {
     db.checklists.toArray().then(todos => {
       setChecklists(todos)
       const fs = [...new Set(todos.map(c => c.fiscal).filter(Boolean))].sort()
       setFiscais(fs)
     })
-  }, [])
+  }
+
+  async function excluirChecklist() {
+    if (!confirmarExclusao) return
+    setExcluindo(true)
+    try {
+      await db.fotos.where('checklistId').equals(confirmarExclusao.id).delete()
+      await db.checklists.delete(confirmarExclusao.id)
+      setConfirmarExclusao(null)
+      carregarChecklists()
+    } finally {
+      setExcluindo(false)
+    }
+  }
 
   if (!checklists) return <Spinner />
 
@@ -41,6 +60,60 @@ export default function ChecklistsPage({ onDetalhe, onImprimir }) {
 
   return (
     <div className="max-w-5xl space-y-5">
+
+      {/* Modal de confirmação de exclusão */}
+      {confirmarExclusao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
+          onClick={() => !excluindo && setConfirmarExclusao(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="bg-red-600 text-white px-5 py-4 flex items-center gap-3">
+              <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <h2 className="font-bold text-base">Excluir checklist?</h2>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <p className="text-sm text-gray-700">
+                Esta ação é <strong>permanente</strong> e não pode ser desfeita. Todos os dados e fotos deste checklist serão removidos.
+              </p>
+              <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1 border border-gray-200">
+                {confirmarExclusao.obra?.os && (
+                  <p><span className="text-gray-500">OS:</span> <strong>{confirmarExclusao.obra.os}</strong></p>
+                )}
+                {confirmarExclusao.data && (
+                  <p><span className="text-gray-500">Data:</span> <strong>{formatarData(confirmarExclusao.data)}</strong></p>
+                )}
+                {confirmarExclusao.fiscal && (
+                  <p><span className="text-gray-500">Fiscal:</span> <strong>{confirmarExclusao.fiscal}</strong></p>
+                )}
+                {confirmarExclusao.obra?.endereco && (
+                  <p className="text-gray-500 text-xs truncate">{confirmarExclusao.obra.endereco}</p>
+                )}
+              </div>
+            </div>
+            <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmarExclusao(null)}
+                disabled={excluindo}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={excluirChecklist}
+                disabled={excluindo}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {excluindo && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                Excluir definitivamente
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 className="text-2xl font-bold text-brand-900">Checklists</h1>
 
       {/* Filtros */}
@@ -139,6 +212,16 @@ export default function ChecklistsPage({ onDetalhe, onImprimir }) {
                           </svg>
                           PDF
                         </button>
+                        <button
+                          onClick={() => setConfirmarExclusao(c)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 text-red-500 text-xs font-medium"
+                          title="Excluir checklist"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -165,7 +248,7 @@ export default function ChecklistsPage({ onDetalhe, onImprimir }) {
                 {filtrados.map(c => {
                   const conformidade = calcConformidadeChecklist(c)
                   return (
-                    <tr key={c.id} className="hover:bg-green-50 transition-colors">
+                    <tr key={c.id} className="hover:bg-brand-50/40 transition-colors">
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                         {c.data ? formatarData(c.data) : '—'}
                       </td>
@@ -198,7 +281,7 @@ export default function ChecklistsPage({ onDetalhe, onImprimir }) {
                           <button
                             onClick={() => onDetalhe(c.id)}
                             className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50"
-                            title="Ver relatório completo"
+                            title="Visualizar relatório completo"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -215,6 +298,16 @@ export default function ChecklistsPage({ onDetalhe, onImprimir }) {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                 d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setConfirmarExclusao(c)}
+                            className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600"
+                            title="Excluir checklist"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
                         </div>
