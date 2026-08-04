@@ -1,4 +1,5 @@
 import Dexie from 'dexie'
+import { comprimirFoto, PRESETS_QUALIDADE } from './imagem'
 
 export const db = new Dexie('gas-gerencial-novo')
 
@@ -94,12 +95,12 @@ export async function importarBackup(jsonData) {
       existing ? atualizados++ : novos++
     }
 
-    const todasFotos = []
+    const candidatas = []
     for (let fi = 0; fi < fotosEntrada.length; fi++) {
       const f = fotosEntrada[fi]
       // Valida que o dataUrl é uma imagem segura antes de armazenar
       if (!dataUrlValida(f.dataUrl)) continue
-      todasFotos.push({
+      candidatas.push({
         id:          f.id || `${checklistBruto.id}_foto_${fi}`,
         checklistId: f.checklistId || checklistBruto.id,
         itemKey:     typeof f.itemKey === 'string' ? f.itemKey : '',
@@ -107,9 +108,16 @@ export async function importarBackup(jsonData) {
       })
     }
 
-    if (todasFotos.length) {
-      await db.fotos.bulkPut(todasFotos)
-      totalFotos += todasFotos.length
+    // Fotos são registros imutáveis: quem chegou primeiro permanece. Isso evita
+    // que uma cópia compactada, vinda do backup de outro computador, substitua a
+    // foto original em alta resolução que já temos aqui.
+    if (candidatas.length) {
+      const existentes = await db.fotos.bulkGet(candidatas.map(f => f.id))
+      const novasFotos = candidatas.filter((_, i) => !existentes[i])
+      if (novasFotos.length) {
+        await db.fotos.bulkAdd(novasFotos)
+        totalFotos += novasFotos.length
+      }
     }
   }
 
@@ -142,20 +150,40 @@ export async function contarRegistros() {
  * Os campos planos (fiscal/municipio/data) são derivados na importação, então
  * não precisam ser exportados — o round-trip export→import é seguro.
  */
-export async function exportarBanco({ incluirFotos = true, identificacao = '' } = {}) {
-  const checklists = await db.checklists.toArray()
+export async function exportarBanco({
+  qualidade = 'media',
+  identificacao = '',
+  onProgresso,
+} = {}) {
+  const preset = PRESETS_QUALIDADE[qualidade] ?? PRESETS_QUALIDADE.media
+  const incluirFotos = qualidade !== 'semFotos'
 
-  // Agrupa fotos por checklist em uma única passagem
+  const checklists = await db.checklists.toArray()
+  const fotosTodas = incluirFotos ? await db.fotos.toArray() : []
+
+  // Compacta as fotos uma a uma, reportando progresso (pode demorar em bancos grandes)
   const fotosPorChecklist = new Map()
-  if (incluirFotos) {
-    for (const f of await db.fotos.toArray()) {
-      if (!fotosPorChecklist.has(f.checklistId)) fotosPorChecklist.set(f.checklistId, [])
-      fotosPorChecklist.get(f.checklistId).push({
-        id:          f.id,
-        checklistId: f.checklistId,
-        itemKey:     f.itemKey ?? '',
-        dataUrl:     f.dataUrl,
-      })
+  let bytesOriginais = 0
+  let bytesFinais = 0
+
+  for (let i = 0; i < fotosTodas.length; i++) {
+    const f = fotosTodas[i]
+    if (typeof f.dataUrl !== 'string') continue
+
+    bytesOriginais += f.dataUrl.length
+    const dataUrl = await comprimirFoto(f.dataUrl, preset)
+    bytesFinais += dataUrl.length
+
+    if (!fotosPorChecklist.has(f.checklistId)) fotosPorChecklist.set(f.checklistId, [])
+    fotosPorChecklist.get(f.checklistId).push({
+      id:          f.id,
+      checklistId: f.checklistId,
+      itemKey:     f.itemKey ?? '',
+      dataUrl,
+    })
+
+    if (onProgresso && (i % 5 === 0 || i === fotosTodas.length - 1)) {
+      onProgresso({ atual: i + 1, total: fotosTodas.length })
     }
   }
 
@@ -175,12 +203,53 @@ export async function exportarBanco({ incluirFotos = true, identificacao = '' } 
   }))
 
   return {
-    app: APP_GERENCIAL,
-    exportadoEm: new Date().toISOString(),
-    identificacao: typeof identificacao === 'string' ? identificacao.slice(0, 60) : '',
-    incluiFotos: incluirFotos,
     dados,
+    meta: {
+      app: APP_GERENCIAL,
+      exportadoEm: new Date().toISOString(),
+      identificacao: typeof identificacao === 'string' ? identificacao.slice(0, 60) : '',
+      incluiFotos: incluirFotos,
+      qualidadeFotos: qualidade,
+    },
+    economia: { bytesOriginais, bytesFinais },
   }
+}
+
+/**
+ * Divide os checklists em vários arquivos menores, para que cada um caiba em
+ * um anexo de e-mail. Um checklist nunca é partido entre dois arquivos, então
+ * cada parte é um backup válido por si só e pode ser importada isoladamente.
+ */
+export function dividirEmPartes(dados, meta, limiteBytes) {
+  const partes = []
+  let atual = []
+  let tamanhoAtual = 0
+
+  for (const entrada of dados) {
+    // Aproximação: em JSON de base64 (ASCII) 1 caractere ≈ 1 byte
+    const tamanho = JSON.stringify(entrada).length
+
+    // Fecha a parte atual se a entrada não couber (mas nunca gera parte vazia:
+    // um único checklist grande demais vira uma parte sozinho, acima do limite)
+    if (atual.length && tamanhoAtual + tamanho > limiteBytes) {
+      partes.push(atual)
+      atual = []
+      tamanhoAtual = 0
+    }
+
+    atual.push(entrada)
+    tamanhoAtual += tamanho
+  }
+
+  if (atual.length) partes.push(atual)
+  if (!partes.length) partes.push([])
+
+  return partes.map((entradas, i) => ({
+    ...meta,
+    parte: i + 1,
+    totalPartes: partes.length,
+    dados: entradas,
+  }))
 }
 
 export async function estatisticas() {

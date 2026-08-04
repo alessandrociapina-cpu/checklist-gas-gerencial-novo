@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { processarArquivos } from '../lib/importService'
-import { TAMANHO_MAX_ARQUIVO, exportarBanco, contarRegistros } from '../lib/db'
+import { TAMANHO_MAX_ARQUIVO, exportarBanco, dividirEmPartes, contarRegistros } from '../lib/db'
+import { PRESETS_QUALIDADE } from '../lib/imagem'
+
+// Limite por arquivo gerado. 20 MB passa com folga nos anexos de e-mail
+// corporativo (normalmente 25 MB) e no WhatsApp Web.
+const LIMITE_PARTE = 20 * 1024 * 1024
 
 export default function ImportPage({ onImportado }) {
   const [arrastando, setArrastando] = useState(false)
@@ -10,9 +15,10 @@ export default function ImportPage({ onImportado }) {
 
   // Exportação do banco consolidado (unificação entre encarregados)
   const [contagem, setContagem] = useState(null)
-  const [incluirFotos, setIncluirFotos] = useState(true)
+  const [qualidade, setQualidade] = useState('media')
   const [identificacao, setIdentificacao] = useState('')
   const [exportando, setExportando] = useState(false)
+  const [progresso, setProgresso] = useState(null)
   const [ultimoExport, setUltimoExport] = useState(null)
 
   useEffect(() => { atualizarContagem() }, [])
@@ -43,31 +49,51 @@ export default function ImportPage({ onImportado }) {
     }
   }
 
+  function baixar(blob, nome) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nome
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   async function exportar() {
     setExportando(true)
     setUltimoExport(null)
+    setProgresso(null)
     try {
-      const backup = await exportarBanco({ incluirFotos, identificacao })
-      const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' })
+      const { dados, meta, economia } = await exportarBanco({
+        qualidade,
+        identificacao,
+        onProgresso: setProgresso,
+      })
+      setProgresso(null)
+
+      const partes = dividirEmPartes(dados, meta, LIMITE_PARTE)
 
       const hoje = new Date().toISOString().substring(0, 10)
       const tag = identificacao.trim()
         ? `-${identificacao.trim().toLowerCase().replace(/[^a-z0-9]+/gi, '-')}`
         : ''
-      const nome = `gas-gerencial-consolidado${tag}-${hoje}.json`
 
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = nome
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      const arquivos = []
+      for (const parte of partes) {
+        const sufixo = partes.length > 1 ? `-parte${parte.parte}de${parte.totalPartes}` : ''
+        const nome = `gas-gerencial-consolidado${tag}-${hoje}${sufixo}.json`
+        const blob = new Blob([JSON.stringify(parte)], { type: 'application/json' })
+        arquivos.push({ nome, tamanho: blob.size })
+        baixar(blob, nome)
+        // Espaça os downloads: navegadores bloqueiam vários disparos simultâneos
+        if (partes.length > 1) await new Promise(r => setTimeout(r, 400))
+      }
 
-      setUltimoExport({ nome, tamanho: blob.size, qtd: backup.dados.length })
+      setUltimoExport({ arquivos, qtd: dados.length, economia })
     } finally {
       setExportando(false)
+      setProgresso(null)
     }
   }
 
@@ -240,21 +266,27 @@ export default function ImportPage({ onImportado }) {
               </p>
             </div>
 
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={incluirFotos}
-                onChange={e => setIncluirFotos(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-              />
-              <span className="text-sm text-gray-700">
-                Incluir fotos e assinaturas
-                <span className="block text-xs text-gray-400">
-                  Desmarque para gerar um arquivo bem menor, caso o envio por e-mail falhe pelo tamanho.
-                  As fotos que já existirem no outro computador são preservadas.
-                </span>
-              </span>
-            </label>
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Qualidade das fotos</label>
+              <select
+                value={qualidade}
+                onChange={e => setQualidade(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                {Object.entries(PRESETS_QUALIDADE).map(([id, p]) => (
+                  <option key={id} value={id}>{p.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                {PRESETS_QUALIDADE[qualidade]?.descricao}
+              </p>
+            </div>
+
+            <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded px-2 py-1.5">
+              As fotos são compactadas <strong>apenas no arquivo enviado</strong> — as originais
+              continuam intactas neste computador. Se o arquivo passar de 20 MB, ele é dividido
+              automaticamente em partes que cabem em um e-mail.
+            </p>
           </div>
 
           <button
@@ -273,6 +305,21 @@ export default function ImportPage({ onImportado }) {
             {exportando ? 'Gerando arquivo…' : 'Exportar banco consolidado'}
           </button>
 
+          {/* Progresso da compactação */}
+          {progresso && (
+            <div className="space-y-1">
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-brand-500 transition-all duration-150"
+                  style={{ width: `${Math.round((progresso.atual / progresso.total) * 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Compactando fotos… {progresso.atual} de {progresso.total}
+              </p>
+            </div>
+          )}
+
           {!contagem?.checklists && contagem && (
             <p className="text-xs text-gray-400">
               Nenhum checklist importado ainda — não há o que exportar.
@@ -280,15 +327,49 @@ export default function ImportPage({ onImportado }) {
           )}
 
           {ultimoExport && (
-            <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
-              <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold">✓</span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800 break-all">{ultimoExport.nome}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {ultimoExport.qtd} checklist{ultimoExport.qtd !== 1 ? 's' : ''} · {fmtTamanho(ultimoExport.tamanho)}
-                  {ultimoExport.tamanho > TAMANHO_MAX_ARQUIVO && ' — acima de 100 MB, exporte sem fotos'}
-                </p>
+            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 space-y-2">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold">✓</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">
+                    {ultimoExport.qtd} checklist{ultimoExport.qtd !== 1 ? 's' : ''} exportado{ultimoExport.qtd !== 1 ? 's' : ''}
+                    {ultimoExport.arquivos.length > 1 && ` em ${ultimoExport.arquivos.length} arquivos`}
+                  </p>
+                  {ultimoExport.economia.bytesOriginais > 0 && (
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      Fotos reduzidas de {fmtTamanho(ultimoExport.economia.bytesOriginais)} para{' '}
+                      {fmtTamanho(ultimoExport.economia.bytesFinais)}
+                      {ultimoExport.economia.bytesFinais < ultimoExport.economia.bytesOriginais && (
+                        <strong>
+                          {' '}({Math.round(100 - (ultimoExport.economia.bytesFinais / ultimoExport.economia.bytesOriginais) * 100)}% menor)
+                        </strong>
+                      )}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              <ul className="space-y-1 pl-8">
+                {ultimoExport.arquivos.map(a => (
+                  <li key={a.nome} className="text-xs text-gray-600 break-all">
+                    {a.nome} — <span className={a.tamanho > TAMANHO_MAX_ARQUIVO ? 'text-red-600 font-semibold' : ''}>{fmtTamanho(a.tamanho)}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {ultimoExport.arquivos.length > 1 && (
+                <p className="text-xs text-gray-600 pl-8">
+                  Envie <strong>todos os arquivos</strong> ao outro encarregado. Ele pode
+                  importar os {ultimoExport.arquivos.length} de uma vez, arrastando juntos.
+                </p>
+              )}
+
+              {ultimoExport.arquivos.some(a => a.tamanho > TAMANHO_MAX_ARQUIVO) && (
+                <p className="text-xs text-red-600 pl-8">
+                  Um dos arquivos passou de 100 MB e não poderá ser importado. Escolha uma
+                  compactação maior e exporte novamente.
+                </p>
+              )}
             </div>
           )}
         </div>

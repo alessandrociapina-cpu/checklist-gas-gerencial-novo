@@ -1,6 +1,16 @@
-export const VERSAO = '1.2.0'
+export const VERSAO = '1.3.0'
 
 export const CHANGELOG = [
+  {
+    versao: '1.3.0',
+    data: '2026-08-04',
+    mudancas: [
+      'Compactação das fotos na exportação, com opções de qualidade',
+      'Arquivos acima de 20 MB são divididos automaticamente em partes que cabem em e-mail',
+      'Barra de progresso e resumo da economia obtida ao exportar',
+      'Fotos originais nunca são substituídas por cópias compactadas ao importar',
+    ],
+  },
   {
     versao: '1.2.0',
     data: '2026-08-04',
