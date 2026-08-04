@@ -1,6 +1,13 @@
-export const VERSAO = '1.3.0'
+export const VERSAO = '1.4.0'
 
 export const CHANGELOG = [
+  {
+    versao: '1.4.0',
+    data: '2026-08-04',
+    mudancas: [
+      'Novo ícone do app: figura de gerente com o símbolo da Sabesp',
+    ],
+  },
   {
     versao: '1.3.0',
     data: '2026-08-04',
