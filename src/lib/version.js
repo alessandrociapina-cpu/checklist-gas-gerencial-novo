@@ -1,6 +1,17 @@
-export const VERSAO = '1.1.0'
+export const VERSAO = '1.2.0'
 
 export const CHANGELOG = [
+  {
+    versao: '1.2.0',
+    data: '2026-08-04',
+    mudancas: [
+      'Unificação de bancos: exporte o banco consolidado e importe o de outro computador',
+      'Importação aceita tanto o backup do fiscal quanto o consolidado de outro gerencial',
+      'Botão para excluir checklists, com confirmação e remoção das fotos',
+      'Relatório com linguagem autoexplicativa (aprovadas / não conformidades)',
+      'Correção: observações do fiscal eram descartadas na importação',
+    ],
+  },
   {
     versao: '1.1.0',
     data: '2026-06-20',

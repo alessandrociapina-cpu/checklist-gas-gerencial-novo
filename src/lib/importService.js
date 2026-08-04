@@ -1,4 +1,4 @@
-import { importarBackup, db } from './db'
+import { importarBackup, db, APPS_ACEITOS, APP_GERENCIAL } from './db'
 
 export async function processarArquivos(arquivos) {
   const resultados = []
@@ -15,10 +15,17 @@ export async function processarArquivos(arquivos) {
 
       // Nota: esta verificação identifica o formato do arquivo, não é um controle de segurança.
       // Todo o conteúdo importado é tratado como dado não confiável nas funções de db.js.
-      if (json.app !== 'checklist-gas-novo') {
-        resultados.push({ arquivo: arquivo.name, erro: 'Formato não reconhecido (app inválido). Esperado: checklist-gas-novo.' })
+      // Aceita tanto o backup do fiscal (app de campo) quanto o backup consolidado
+      // de outro computador gerencial, permitindo unificar bancos entre encarregados.
+      if (!APPS_ACEITOS.includes(json.app)) {
+        resultados.push({
+          arquivo: arquivo.name,
+          erro: `Formato não reconhecido. Esperado backup do app de campo ou de outro computador gerencial.`,
+        })
         continue
       }
+
+      const consolidado = json.app === APP_GERENCIAL
 
       const { novos, atualizados, total, fotos: qtdFotos } = await importarBackup(json)
 
@@ -28,7 +35,10 @@ export async function processarArquivos(arquivos) {
         qtd: novos + atualizados,
       })
 
-      resultados.push({ arquivo: arquivo.name, novos, atualizados, total, fotos: qtdFotos, ok: true })
+      resultados.push({
+        arquivo: arquivo.name, novos, atualizados, total,
+        fotos: qtdFotos, consolidado, origem: json.identificacao || '', ok: true,
+      })
     } catch (e) {
       resultados.push({ arquivo: arquivo.name, erro: e.message })
     }

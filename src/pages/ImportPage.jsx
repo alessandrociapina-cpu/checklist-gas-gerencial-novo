@@ -1,12 +1,25 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { processarArquivos } from '../lib/importService'
-import { TAMANHO_MAX_ARQUIVO } from '../lib/db'
+import { TAMANHO_MAX_ARQUIVO, exportarBanco, contarRegistros } from '../lib/db'
 
 export default function ImportPage({ onImportado }) {
   const [arrastando, setArrastando] = useState(false)
   const [processando, setProcessando] = useState(false)
   const [resultados, setResultados] = useState(null)
   const inputRef = useRef()
+
+  // Exportação do banco consolidado (unificação entre encarregados)
+  const [contagem, setContagem] = useState(null)
+  const [incluirFotos, setIncluirFotos] = useState(true)
+  const [identificacao, setIdentificacao] = useState('')
+  const [exportando, setExportando] = useState(false)
+  const [ultimoExport, setUltimoExport] = useState(null)
+
+  useEffect(() => { atualizarContagem() }, [])
+
+  function atualizarContagem() {
+    contarRegistros().then(setContagem)
+  }
 
   async function processar(arquivos) {
     if (!arquivos.length) return
@@ -24,8 +37,37 @@ export default function ImportPage({ onImportado }) {
     try {
       const res = await processarArquivos(listaFiltrada)
       setResultados(res)
+      atualizarContagem()
     } finally {
       setProcessando(false)
+    }
+  }
+
+  async function exportar() {
+    setExportando(true)
+    setUltimoExport(null)
+    try {
+      const backup = await exportarBanco({ incluirFotos, identificacao })
+      const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' })
+
+      const hoje = new Date().toISOString().substring(0, 10)
+      const tag = identificacao.trim()
+        ? `-${identificacao.trim().toLowerCase().replace(/[^a-z0-9]+/gi, '-')}`
+        : ''
+      const nome = `gas-gerencial-consolidado${tag}-${hoje}.json`
+
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = nome
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      setUltimoExport({ nome, tamanho: blob.size, qtd: backup.dados.length })
+    } finally {
+      setExportando(false)
     }
   }
 
@@ -43,12 +85,13 @@ export default function ImportPage({ onImportado }) {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-brand-900">Importar Checklists</h1>
+      <h1 className="text-2xl font-bold text-brand-900">Importar e Unificar Dados</h1>
 
       <p className="text-gray-600 text-sm">
-        Carregue os arquivos <strong>.json</strong> de backup exportados pelo app{' '}
-        <strong>Checklist Gás Novo</strong> (Checklist de Segurança · Interferência em Rede de Gás).
-        Checklists já existentes serão atualizados apenas se a versão importada for mais recente.
+        Carregue os arquivos <strong>.json</strong> enviados pelos fiscais pelo app{' '}
+        <strong>Checklist Gás Novo</strong>, ou o <strong>banco consolidado</strong> exportado
+        por outro computador gerencial. Checklists já existentes são atualizados apenas se a
+        versão importada for mais recente, então importar o mesmo arquivo duas vezes não duplica nada.
       </p>
 
       {/* Zona de drop */}
@@ -106,10 +149,18 @@ export default function ImportPage({ onImportado }) {
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-sm text-gray-800 truncate">{r.arquivo}</p>
                   {r.ok ? (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {r.novos} novo{r.novos !== 1 ? 's' : ''} · {r.atualizados} atualizado{r.atualizados !== 1 ? 's' : ''} · {r.total} total
-                      {r.fotos > 0 && ` · ${r.fotos} foto${r.fotos !== 1 ? 's' : ''}`}
-                    </p>
+                    <>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {r.novos} novo{r.novos !== 1 ? 's' : ''} · {r.atualizados} atualizado{r.atualizados !== 1 ? 's' : ''} · {r.total} total
+                        {r.fotos > 0 && ` · ${r.fotos} foto${r.fotos !== 1 ? 's' : ''}`}
+                      </p>
+                      {r.consolidado && (
+                        <p className="text-xs text-brand-600 mt-1 font-medium">
+                          Banco consolidado de outro computador
+                          {r.origem && ` — ${r.origem}`}
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <p className="text-xs text-red-500 mt-0.5">{r.erro}</p>
                   )}
@@ -128,6 +179,126 @@ export default function ImportPage({ onImportado }) {
           Ver Dashboard
         </button>
       )}
+
+      {/* ── Unificação de bancos entre encarregados ─────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 bg-brand-900 text-white">
+          <h2 className="font-bold text-base">Unificar bancos de dados</h2>
+          <p className="text-xs text-brand-200 mt-0.5">
+            Para juntar os checklists de dois computadores
+          </p>
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          <div className="bg-brand-50 border border-brand-100 rounded-lg px-4 py-3">
+            <p className="text-sm text-gray-700 font-medium mb-2">Como fazer:</p>
+            <ol className="text-sm text-gray-600 space-y-1 list-decimal list-inside">
+              <li>Cada encarregado clica em <strong>Exportar banco consolidado</strong>.</li>
+              <li>Trocam os arquivos entre si (e-mail, WhatsApp ou pen drive).</li>
+              <li>Cada um importa o arquivo do outro na área acima.</li>
+            </ol>
+            <p className="text-xs text-gray-500 mt-2">
+              Ao final os dois computadores ficam com exatamente os mesmos checklists.
+              Pode repetir quantas vezes quiser — nada é duplicado.
+            </p>
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 mt-2">
+              <strong>Atenção:</strong> exclusões não são transmitidas. Se você excluir um
+              checklist e depois importar o banco do outro encarregado, ele volta. Combinem
+              antes quem exclui o quê, ou excluam nos dois computadores.
+            </p>
+          </div>
+
+          {/* Situação atual */}
+          <div className="flex items-center gap-4 text-sm">
+            <span className="text-gray-500">Seu banco atual:</span>
+            {contagem ? (
+              <span className="font-semibold text-gray-800">
+                {contagem.checklists} checklist{contagem.checklists !== 1 ? 's' : ''}
+                {' · '}{contagem.fotos} foto{contagem.fotos !== 1 ? 's' : ''}
+              </span>
+            ) : (
+              <span className="text-gray-400">carregando…</span>
+            )}
+          </div>
+
+          {/* Opções */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">
+                Identificação <span className="text-gray-400">(opcional)</span>
+              </label>
+              <input
+                type="text"
+                value={identificacao}
+                onChange={e => setIdentificacao(e.target.value)}
+                maxLength={60}
+                placeholder="Ex.: João — Unidade Sul"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                Aparece no nome do arquivo e para quem importar, ajudando a saber de qual computador veio.
+              </p>
+            </div>
+
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={incluirFotos}
+                onChange={e => setIncluirFotos(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+              />
+              <span className="text-sm text-gray-700">
+                Incluir fotos e assinaturas
+                <span className="block text-xs text-gray-400">
+                  Desmarque para gerar um arquivo bem menor, caso o envio por e-mail falhe pelo tamanho.
+                  As fotos que já existirem no outro computador são preservadas.
+                </span>
+              </span>
+            </label>
+          </div>
+
+          <button
+            onClick={exportar}
+            disabled={exportando || !contagem?.checklists}
+            className="flex items-center gap-2 bg-brand-600 text-white px-5 py-2.5 rounded-lg hover:bg-brand-700 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {exportando ? (
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            )}
+            {exportando ? 'Gerando arquivo…' : 'Exportar banco consolidado'}
+          </button>
+
+          {!contagem?.checklists && contagem && (
+            <p className="text-xs text-gray-400">
+              Nenhum checklist importado ainda — não há o que exportar.
+            </p>
+          )}
+
+          {ultimoExport && (
+            <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+              <span className="mt-0.5 flex-shrink-0 w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold">✓</span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 break-all">{ultimoExport.nome}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {ultimoExport.qtd} checklist{ultimoExport.qtd !== 1 ? 's' : ''} · {fmtTamanho(ultimoExport.tamanho)}
+                  {ultimoExport.tamanho > TAMANHO_MAX_ARQUIVO && ' — acima de 100 MB, exporte sem fotos'}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
+}
+
+function fmtTamanho(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }

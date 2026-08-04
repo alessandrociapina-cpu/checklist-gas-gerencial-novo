@@ -24,6 +24,14 @@ function municipioResolvido(obra = {}) {
   return obra.municipio === 'Outros' ? (obra.municipioOutro || 'Outros') : obra.municipio
 }
 
+// Normaliza observações: o app de campo grava um objeto { texto }, mas versões
+// antigas podiam gravar uma string simples. Sempre devolve objeto para o relatório.
+function sanitizarObservacoes(o) {
+  if (typeof o === 'string') return { texto: o }
+  if (o && typeof o === 'object') return o
+  return {}
+}
+
 // Garante que apenas campos conhecidos e seguros do checklist sejam persistidos
 function sanitizarChecklist(c) {
   return {
@@ -34,7 +42,7 @@ function sanitizarChecklist(c) {
     gas:           c.gas           && typeof c.gas === 'object'           ? c.gas           : {},
     seguranca:     Array.isArray(c.seguranca)                             ? c.seguranca     : [],
     responsaveis:  c.responsaveis  && typeof c.responsaveis === 'object'  ? c.responsaveis  : {},
-    observacoes:   typeof c.observacoes === 'string'    ? c.observacoes   : '',
+    observacoes:   sanitizarObservacoes(c.observacoes),
     // assinaturas são dataUrls — validadas individualmente abaixo
     assinaturas:   c.assinaturas   && typeof c.assinaturas === 'object'   ? c.assinaturas   : {},
   }
@@ -109,6 +117,71 @@ export async function importarBackup(jsonData) {
 }
 
 export { TAMANHO_MAX_ARQUIVO }
+
+// Identificadores de origem aceitos na importação:
+// - checklist-gas-novo           → backup enviado pelo fiscal (app de campo)
+// - checklist-gas-gerencial-novo → backup consolidado de outro computador gerencial
+export const APP_CAMPO     = 'checklist-gas-novo'
+export const APP_GERENCIAL = 'checklist-gas-gerencial-novo'
+export const APPS_ACEITOS  = [APP_CAMPO, APP_GERENCIAL]
+
+// Contagem rápida para exibir na tela antes de exportar
+export async function contarRegistros() {
+  const [checklists, fotos] = await Promise.all([
+    db.checklists.count(),
+    db.fotos.count(),
+  ])
+  return { checklists, fotos }
+}
+
+/**
+ * Gera um backup consolidado de TODO o banco local, no mesmo formato que a
+ * importação já entende. Permite unificar os bancos de dois encarregados:
+ * cada um exporta, troca o arquivo e importa o do outro.
+ *
+ * Os campos planos (fiscal/municipio/data) são derivados na importação, então
+ * não precisam ser exportados — o round-trip export→import é seguro.
+ */
+export async function exportarBanco({ incluirFotos = true, identificacao = '' } = {}) {
+  const checklists = await db.checklists.toArray()
+
+  // Agrupa fotos por checklist em uma única passagem
+  const fotosPorChecklist = new Map()
+  if (incluirFotos) {
+    for (const f of await db.fotos.toArray()) {
+      if (!fotosPorChecklist.has(f.checklistId)) fotosPorChecklist.set(f.checklistId, [])
+      fotosPorChecklist.get(f.checklistId).push({
+        id:          f.id,
+        checklistId: f.checklistId,
+        itemKey:     f.itemKey ?? '',
+        dataUrl:     f.dataUrl,
+      })
+    }
+  }
+
+  const dados = checklists.map(c => ({
+    checklist: {
+      id:           c.id,
+      criadoEm:     c.criadoEm,
+      atualizadoEm: c.atualizadoEm,
+      obra:         c.obra,
+      gas:          c.gas,
+      seguranca:    c.seguranca,
+      responsaveis: c.responsaveis,
+      observacoes:  c.observacoes,
+      assinaturas:  c.assinaturas,
+    },
+    fotos: fotosPorChecklist.get(c.id) ?? [],
+  }))
+
+  return {
+    app: APP_GERENCIAL,
+    exportadoEm: new Date().toISOString(),
+    identificacao: typeof identificacao === 'string' ? identificacao.slice(0, 60) : '',
+    incluiFotos: incluirFotos,
+    dados,
+  }
+}
 
 export async function estatisticas() {
   const todos = await db.checklists.toArray()
