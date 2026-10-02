@@ -2,17 +2,20 @@ import { useEffect, useState } from 'react'
 import { db } from '../lib/db'
 import {
   LABELS_OBRA, LABELS_GAS, LABELS_RESPONSAVEIS, SEGURANCA_PERGUNTAS,
-  fmtData, fotosDoItemSeg, fotosObs, fotosGerais,
+  LABELS_CADASTRO, fmtData, fotosDoItemSeg, fotosObs, fotosGerais,
+  anexosDoItemCad, registrosCadastro, registroCadastroPreenchido,
 } from '../lib/reportData'
 
 export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
   const [checklist, setChecklist] = useState(null)
   const [fotos, setFotos] = useState([])
+  const [anexos, setAnexos] = useState([])
   const [lightbox, setLightbox] = useState(null)
 
   useEffect(() => {
     db.checklists.get(id).then(setChecklist)
     db.fotos.where('checklistId').equals(id).toArray().then(setFotos)
+    db.anexos.where('checklistId').equals(id).toArray().then(setAnexos)
   }, [id])
 
   useEffect(() => {
@@ -38,6 +41,10 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
   const totalFotos = fotos.length
 
   const municipioExib = obra.municipio === 'Outros' ? (obra.municipioOutro || 'Outros') : obra.municipio
+
+  // Só entram no relatório os registros de cadastro efetivamente preenchidos:
+  // o app de campo sempre cria um registro em branco ao abrir o checklist
+  const regsCadastro = registrosCadastro(checklist).filter(registroCadastroPreenchido)
 
   return (
     <div style={{ fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif" }}>
@@ -123,6 +130,9 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
             valor={totalNao}
             label="Não conformidades" />
           <Card cor="neutro"  valor={totalFotos} label="Fotos registradas" />
+          {anexos.length > 0 && (
+            <Card cor="neutro" valor={anexos.length} label="Documentos anexados" />
+          )}
           {gas.criticidade && <Card cor={gas.criticidade === 'Alta' ? 'vermelho' : gas.criticidade === 'Média' ? 'laranja' : 'verde'} valor={gas.criticidade} label="Criticidade do gás" />}
         </div>
 
@@ -166,6 +176,51 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
           </Secao>
         )}
 
+        {/* Atualização Cadastral — registros preenchidos pelo fiscal em campo */}
+        {regsCadastro.length > 0 && (
+          <Secao
+            titulo="Atualização Cadastral"
+            badge={`${regsCadastro.length} registro${regsCadastro.length !== 1 ? 's' : ''}`}
+          >
+            {regsCadastro.map((r, i) => {
+              const ftsCad = anexosDoItemCad(fotos, r.id)
+              const anxCad = anexosDoItemCad(anexos, r.id)
+              return (
+                <div key={r.id || i} className="rel-cad-registro">
+                  <p className="rel-cad-titulo">Registro {i + 1}</p>
+                  <table className="rel-tabela">
+                    <tbody>
+                      {LABELS_CADASTRO.map(({ key, label }) => {
+                        const val = Array.isArray(r[key]) ? r[key].join(', ') : r[key]
+                        if (!val) return null
+                        return (
+                          <tr key={key}>
+                            <td className="rel-td-label">{label}</td>
+                            <td className="rel-td-valor" style={{ whiteSpace: 'pre-wrap' }}>{val}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+
+                  {ftsCad.length > 0 && (
+                    <div className="rel-fotos-wrap" style={{ marginTop: 8 }}>
+                      {ftsCad.map((f, fi) => (
+                        <div key={fi} className="rel-foto-item">
+                          <img src={f.dataUrl} alt={`Cadastro ${fi + 1}`} className="rel-foto-img"
+                            onClick={() => setLightbox(f.dataUrl)} title="Clique para ampliar" />
+                          <span className="rel-foto-rotulo">Foto {fi + 1}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <ListaAnexos anexos={anxCad} titulo="Documentos anexados" />
+                </div>
+              )
+            })}
+          </Secao>
+        )}
+
         {/* Verificação de Segurança */}
         {seg.length > 0 && (
           <Secao
@@ -192,6 +247,7 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
                   const ehSim = item.resposta === 'Sim'
                   const ehNao = item.resposta === 'Não'
                   const fts   = fotosDoItemSeg(fotos, i)
+                  const anxs  = fotosDoItemSeg(anexos, i)
                   return (
                     <>
                       <tr key={i} className={ehSim ? 'rel-ok' : ehNao ? 'rel-nok' : ''}>
@@ -217,24 +273,27 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
                           {!ehSim && !ehNao && <span style={{ color: '#9ca3af' }}>—</span>}
                         </td>
                       </tr>
-                      {fts.length > 0 && (
+                      {(fts.length > 0 || anxs.length > 0) && (
                         <tr key={`${i}-fotos`} className="rel-fotos-row">
                           <td />
                           <td colSpan={3}>
-                            <div className="rel-fotos-wrap">
-                              {fts.map((f, fi) => (
-                                <div key={fi} className="rel-foto-item">
-                                  <img
-                                    src={f.dataUrl}
-                                    alt={`Foto ${fi + 1}`}
-                                    className="rel-foto-img"
-                                    onClick={() => setLightbox(f.dataUrl)}
-                                    title="Clique para ampliar"
-                                  />
-                                  <span className="rel-foto-rotulo">Foto {fi + 1}</span>
-                                </div>
-                              ))}
-                            </div>
+                            {fts.length > 0 && (
+                              <div className="rel-fotos-wrap">
+                                {fts.map((f, fi) => (
+                                  <div key={fi} className="rel-foto-item">
+                                    <img
+                                      src={f.dataUrl}
+                                      alt={`Foto ${fi + 1}`}
+                                      className="rel-foto-img"
+                                      onClick={() => setLightbox(f.dataUrl)}
+                                      title="Clique para ampliar"
+                                    />
+                                    <span className="rel-foto-rotulo">Foto {fi + 1}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <ListaAnexos anexos={anxs} titulo="Documentos anexados" />
                           </td>
                         </tr>
                       )}
@@ -293,6 +352,7 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
                 ))}
               </div>
             )}
+            <ListaAnexos anexos={fotosObs(anexos)} titulo="Documentos anexados" />
           </Secao>
         )}
 
@@ -311,18 +371,21 @@ export default function ChecklistDetail({ id, onVoltar, autoPrint = false }) {
           </Secao>
         )}
 
-        {/* Fotos gerais (sem itemKey) */}
-        {fotosGerais(fotos).length > 0 && (
-          <Secao titulo="Registro Fotográfico">
-            <div className="rel-fotos-wrap">
-              {fotosGerais(fotos).map((f, i) => (
-                <div key={i} className="rel-foto-item">
-                  <img src={f.dataUrl} alt={`Foto ${i + 1}`} className="rel-foto-img"
-                    onClick={() => setLightbox(f.dataUrl)} title="Clique para ampliar" />
-                  <span className="rel-foto-rotulo">Foto {i + 1}</span>
-                </div>
-              ))}
-            </div>
+        {/* Fotos e documentos gerais (sem itemKey) */}
+        {(fotosGerais(fotos).length > 0 || fotosGerais(anexos).length > 0) && (
+          <Secao titulo="Registro Fotográfico e Documentos">
+            {fotosGerais(fotos).length > 0 && (
+              <div className="rel-fotos-wrap">
+                {fotosGerais(fotos).map((f, i) => (
+                  <div key={i} className="rel-foto-item">
+                    <img src={f.dataUrl} alt={`Foto ${i + 1}`} className="rel-foto-img"
+                      onClick={() => setLightbox(f.dataUrl)} title="Clique para ampliar" />
+                    <span className="rel-foto-rotulo">Foto {i + 1}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <ListaAnexos anexos={fotosGerais(anexos)} titulo="Documentos anexados" />
           </Secao>
         )}
 
@@ -350,6 +413,59 @@ function Secao({ titulo, children, badge, corBadge }) {
         )}
       </div>
       <div className="rel-secao-corpo">{children}</div>
+    </div>
+  )
+}
+
+// Lista de anexos em PDF enviados pelo fiscal.
+// No papel sai apenas o ícone e o nome do arquivo, servindo de registro do que
+// foi anexado; na tela o PDF pode ser aberto ou salvo.
+function ListaAnexos({ anexos, titulo }) {
+  if (!anexos.length) return null
+  return (
+    <div className="rel-anexos">
+      {titulo && <p className="rel-anexos-titulo">{titulo}</p>}
+      {anexos.map(a => <AnexoPdf key={a.id} anexo={a} />)}
+    </div>
+  )
+}
+
+function AnexoPdf({ anexo }) {
+  // base64 vira ~3/4 do tamanho original em bytes
+  const bytes = Math.round((anexo.dataUrl.length - (anexo.dataUrl.indexOf(',') + 1)) * 0.75)
+  const tamanho = bytes >= 1024 * 1024
+    ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.ceil(bytes / 1024)} KB`
+
+  function abrir() {
+    try {
+      // Navegadores bloqueiam abrir "data:" em nova aba — converte para blob
+      const base64 = anexo.dataUrl.slice(anexo.dataUrl.indexOf(',') + 1)
+      const bin = atob(base64)
+      const buf = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i)
+      const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }))
+      window.open(url, '_blank', 'noopener')
+      // revogar cedo demais aborta a abertura de arquivos grandes
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch {
+      // se falhar, o botão de baixar ao lado continua funcionando
+    }
+  }
+
+  return (
+    <div className="rel-anexo-item">
+      <svg className="rel-anexo-icone" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 3v6h6" />
+      </svg>
+      <span className="rel-anexo-nome">{anexo.nome}</span>
+      <span className="rel-anexo-tamanho">{tamanho}</span>
+      <span className="no-print rel-anexo-acoes">
+        <button onClick={abrir} className="rel-anexo-botao">Abrir</button>
+        <a href={anexo.dataUrl} download={anexo.nome} className="rel-anexo-botao">Baixar</a>
+      </span>
     </div>
   )
 }

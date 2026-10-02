@@ -54,7 +54,7 @@ export async function processarArquivos(arquivos) {
 
       const consolidado = json.app === APP_GERENCIAL
 
-      const { novos, atualizados, total, fotos: qtdFotos } = await importarBackup(json)
+      const { novos, atualizados, total, fotos: qtdFotos, anexos: qtdAnexos } = await importarBackup(json)
 
       await db.importacoes.add({
         arquivo: arquivo.name,
@@ -64,7 +64,8 @@ export async function processarArquivos(arquivos) {
 
       resultados.push({
         arquivo: arquivo.name, novos, atualizados, total,
-        fotos: qtdFotos, consolidado, origem: json.identificacao || '', ok: true,
+        fotos: qtdFotos, anexos: qtdAnexos, consolidado,
+        origem: json.identificacao || '', ok: true,
       })
     } catch (e) {
       resultados.push({ arquivo: arquivo.name, erro: e.message })

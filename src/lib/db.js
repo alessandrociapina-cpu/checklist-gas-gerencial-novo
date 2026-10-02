@@ -9,15 +9,33 @@ db.version(1).stores({
   importacoes: '++id, arquivo, importadoEm, qtd',
 })
 
+// v2: anexos em PDF enviados pelo fiscal (mesmo esquema de itemKey das fotos).
+// O Dexie preserva os dados das tabelas já existentes ao migrar.
+db.version(2).stores({
+  checklists: 'id, atualizadoEm, *fiscal, *municipio, data',
+  fotos: 'id, checklistId, itemKey',
+  anexos: 'id, checklistId, itemKey',
+  importacoes: '++id, arquivo, importadoEm, qtd',
+})
+
 // Prefixos de dataUrl aceitos para fotos e assinaturas (allowlist restritiva)
 const DATA_URL_PERMITIDO = ['data:image/jpeg;', 'data:image/png;', 'data:image/gif;', 'data:image/webp;']
 const TAMANHO_MAX_DATAURL = 5 * 1024 * 1024  // 5 MB por imagem
 const TAMANHO_MAX_ARQUIVO = 100 * 1024 * 1024 // 100 MB por arquivo de backup
+// O app de campo limita o PDF a 15 MB; em base64 isso cresce ~33%
+const TAMANHO_MAX_PDF = 25 * 1024 * 1024
 
 function dataUrlValida(v) {
   if (typeof v !== 'string') return false
   if (v.length > TAMANHO_MAX_DATAURL) return false
   return DATA_URL_PERMITIDO.some(p => v.startsWith(p))
+}
+
+// Anexos são exclusivamente PDF — não aceitamos nenhum outro tipo aqui
+function dataUrlPdfValida(v) {
+  if (typeof v !== 'string') return false
+  if (v.length > TAMANHO_MAX_PDF) return false
+  return v.startsWith('data:application/pdf;')
 }
 
 function municipioResolvido(obra = {}) {
@@ -33,6 +51,22 @@ function sanitizarObservacoes(o) {
   return {}
 }
 
+// Atualização cadastral: lista de registros preenchidos pelo fiscal em campo.
+// Mantém apenas os campos conhecidos de cada registro (allowlist), já que o
+// conteúdo importado é tratado como não confiável.
+function sanitizarCadastro(cad) {
+  const registros = Array.isArray(cad?.registros) ? cad.registros : []
+  return {
+    registros: registros.slice(0, 200).map(r => ({
+      id:        typeof r?.id === 'string' ? r.id : '',
+      rede:      typeof r?.rede === 'string' ? r.rede : '',
+      tipos:     Array.isArray(r?.tipos) ? r.tipos.filter(t => typeof t === 'string') : [],
+      posicao:   typeof r?.posicao === 'string' ? r.posicao : '',
+      descricao: typeof r?.descricao === 'string' ? r.descricao : '',
+    })),
+  }
+}
+
 // Garante que apenas campos conhecidos e seguros do checklist sejam persistidos
 function sanitizarChecklist(c) {
   return {
@@ -43,6 +77,7 @@ function sanitizarChecklist(c) {
     gas:           c.gas           && typeof c.gas === 'object'           ? c.gas           : {},
     seguranca:     Array.isArray(c.seguranca)                             ? c.seguranca     : [],
     responsaveis:  c.responsaveis  && typeof c.responsaveis === 'object'  ? c.responsaveis  : {},
+    cadastro:      sanitizarCadastro(c.cadastro),
     observacoes:   sanitizarObservacoes(c.observacoes),
     // assinaturas são dataUrls — validadas individualmente abaixo
     assinaturas:   c.assinaturas   && typeof c.assinaturas === 'object'   ? c.assinaturas   : {},
@@ -70,9 +105,10 @@ export async function importarBackup(jsonData) {
   let novos = 0
   let atualizados = 0
   let totalFotos = 0
+  let totalAnexos = 0
 
   for (const entrada of jsonData.dados) {
-    const { checklist: checklistBruto, fotos: fotosEntrada = [] } = entrada
+    const { checklist: checklistBruto, fotos: fotosEntrada = [], anexos: anexosEntrada = [] } = entrada
     if (!checklistBruto?.id || typeof checklistBruto.id !== 'string') continue
 
     const existing = await db.checklists.get(checklistBruto.id)
@@ -119,9 +155,32 @@ export async function importarBackup(jsonData) {
         totalFotos += novasFotos.length
       }
     }
+
+    // Anexos em PDF enviados pelo fiscal, com a mesma regra das fotos
+    const candidatasAnexo = []
+    for (let ai = 0; ai < anexosEntrada.length; ai++) {
+      const a = anexosEntrada[ai]
+      if (!dataUrlPdfValida(a?.dataUrl)) continue
+      candidatasAnexo.push({
+        id:          typeof a.id === 'string' && a.id ? a.id : `${checklistBruto.id}_anexo_${ai}`,
+        checklistId: typeof a.checklistId === 'string' && a.checklistId ? a.checklistId : checklistBruto.id,
+        itemKey:     typeof a.itemKey === 'string' ? a.itemKey : '',
+        nome:        typeof a.nome === 'string' ? a.nome.slice(0, 180) : 'documento.pdf',
+        dataUrl:     a.dataUrl,
+      })
+    }
+
+    if (candidatasAnexo.length) {
+      const existentes = await db.anexos.bulkGet(candidatasAnexo.map(a => a.id))
+      const novosAnexos = candidatasAnexo.filter((_, i) => !existentes[i])
+      if (novosAnexos.length) {
+        await db.anexos.bulkAdd(novosAnexos)
+        totalAnexos += novosAnexos.length
+      }
+    }
   }
 
-  return { novos, atualizados, total: jsonData.dados.length, fotos: totalFotos }
+  return { novos, atualizados, total: jsonData.dados.length, fotos: totalFotos, anexos: totalAnexos }
 }
 
 export { TAMANHO_MAX_ARQUIVO }
@@ -135,11 +194,12 @@ export const APPS_ACEITOS  = [APP_CAMPO, APP_GERENCIAL]
 
 // Contagem rápida para exibir na tela antes de exportar
 export async function contarRegistros() {
-  const [checklists, fotos] = await Promise.all([
+  const [checklists, fotos, anexos] = await Promise.all([
     db.checklists.count(),
     db.fotos.count(),
+    db.anexos.count(),
   ])
-  return { checklists, fotos }
+  return { checklists, fotos, anexos }
 }
 
 /**
@@ -187,6 +247,20 @@ export async function exportarBanco({
     }
   }
 
+  // Anexos em PDF seguem junto sem recompactar: são documentos, não imagens.
+  // Acompanham a opção "sem fotos" para que ela continue gerando o arquivo mínimo.
+  const anexosPorChecklist = new Map()
+  if (incluirFotos) {
+    for (const a of await db.anexos.toArray()) {
+      if (typeof a.dataUrl !== 'string') continue
+      if (!anexosPorChecklist.has(a.checklistId)) anexosPorChecklist.set(a.checklistId, [])
+      anexosPorChecklist.get(a.checklistId).push({
+        id: a.id, checklistId: a.checklistId, itemKey: a.itemKey ?? '',
+        nome: a.nome ?? 'documento.pdf', dataUrl: a.dataUrl,
+      })
+    }
+  }
+
   const dados = checklists.map(c => ({
     checklist: {
       id:           c.id,
@@ -196,10 +270,12 @@ export async function exportarBanco({
       gas:          c.gas,
       seguranca:    c.seguranca,
       responsaveis: c.responsaveis,
+      cadastro:     c.cadastro,
       observacoes:  c.observacoes,
       assinaturas:  c.assinaturas,
     },
-    fotos: fotosPorChecklist.get(c.id) ?? [],
+    fotos:  fotosPorChecklist.get(c.id) ?? [],
+    anexos: anexosPorChecklist.get(c.id) ?? [],
   }))
 
   return {

@@ -1,6 +1,16 @@
-export const VERSAO = '1.5.0'
+export const VERSAO = '1.6.0'
 
 export const CHANGELOG = [
+  {
+    versao: '1.6.0',
+    data: '2026-10-02',
+    mudancas: [
+      'Anexos em PDF do fiscal aparecem no relatório, com opção de abrir e baixar',
+      'Nova seção "Atualização Cadastral" no relatório, que antes era descartada',
+      'Fotos dos registros de cadastro agora aparecem (antes ficavam invisíveis)',
+      'Anexos acompanham o backup consolidado e são removidos ao excluir o checklist',
+    ],
+  },
   {
     versao: '1.5.0',
     data: '2026-10-02',

@@ -186,6 +186,7 @@ export default function ImportPage({ onImportado }) {
                       <p className="text-xs text-gray-500 mt-0.5">
                         {r.novos} novo{r.novos !== 1 ? 's' : ''} · {r.atualizados} atualizado{r.atualizados !== 1 ? 's' : ''} · {r.total} total
                         {r.fotos > 0 && ` · ${r.fotos} foto${r.fotos !== 1 ? 's' : ''}`}
+                        {r.anexos > 0 && ` · ${r.anexos} PDF${r.anexos !== 1 ? 's' : ''}`}
                       </p>
                       {r.consolidado && (
                         <p className="text-xs text-brand-600 mt-1 font-medium">
@@ -268,6 +269,7 @@ export default function ImportPage({ onImportado }) {
               <span className="font-semibold text-gray-800">
                 {contagem.checklists} checklist{contagem.checklists !== 1 ? 's' : ''}
                 {' · '}{contagem.fotos} foto{contagem.fotos !== 1 ? 's' : ''}
+                {contagem.anexos > 0 && ` · ${contagem.anexos} PDF${contagem.anexos !== 1 ? 's' : ''}`}
               </span>
             ) : (
               <span className="text-gray-400">carregando…</span>

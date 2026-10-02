@@ -193,6 +193,75 @@
   color: #6b7280;
 }
 
+/* Atualização cadastral */
+.rel-cad-registro {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  break-inside: avoid;
+}
+.rel-cad-registro:last-child { margin-bottom: 0; }
+.rel-cad-titulo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #00AEEF;
+  margin: 0 0 6px;
+}
+
+/* Anexos em PDF */
+.rel-anexos { margin-top: 8px; }
+.rel-anexos-titulo {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #6b7280;
+  margin: 0 0 5px;
+}
+.rel-anexo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid #d8dee6;
+  border-radius: 6px;
+  background: #f8fafc;
+  margin-bottom: 5px;
+  font-size: 0.8rem;
+  break-inside: avoid;
+}
+.rel-anexo-item:last-child { margin-bottom: 0; }
+.rel-anexo-icone {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  color: #c5221f; /* vermelho de PDF */
+}
+.rel-anexo-nome {
+  font-weight: 600;
+  color: #111827;
+  word-break: break-all;
+  flex: 1;
+}
+.rel-anexo-tamanho { color: #6b7280; font-size: 0.72rem; white-space: nowrap; }
+.rel-anexo-acoes { display: flex; gap: 6px; flex-shrink: 0; }
+.rel-anexo-botao {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0082B8;
+  background: white;
+  border: 1px solid #b3e3f8;
+  border-radius: 5px;
+  padding: 2px 8px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.rel-anexo-botao:hover { background: #e6f6fd; }
+
 /* Rodapé */
 .rel-rodape {
   text-align: center;
@@ -228,4 +297,6 @@
   .rel-ok td, .rel-nok td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rel-card             { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rel-tabela th        { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rel-anexo-item       { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .rel-cad-registro     { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }

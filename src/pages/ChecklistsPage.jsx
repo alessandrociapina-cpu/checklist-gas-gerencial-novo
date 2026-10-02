@@ -28,6 +28,7 @@ export default function ChecklistsPage({ onDetalhe, onImprimir }) {
     setExcluindo(true)
     try {
       await db.fotos.where('checklistId').equals(confirmarExclusao.id).delete()
+      await db.anexos.where('checklistId').equals(confirmarExclusao.id).delete()
       await db.checklists.delete(confirmarExclusao.id)
       setConfirmarExclusao(null)
       carregarChecklists()

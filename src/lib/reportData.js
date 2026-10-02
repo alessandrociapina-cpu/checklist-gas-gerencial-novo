@@ -67,3 +67,27 @@ export function fotosObs(fotos) {
 export function fotosGerais(fotos) {
   return fotos.filter(f => !f.itemKey || f.itemKey === '')
 }
+
+// Fotos e anexos de um registro de atualização cadastral: "cad:<id do registro>"
+export function anexosDoItemCad(itens, registroId) {
+  return itens.filter(f => f.itemKey === `cad:${registroId}`)
+}
+
+// Rótulos da seção de atualização cadastral, espelhando o app de campo
+export const LABELS_CADASTRO = [
+  { key: 'rede',      label: 'Rede' },
+  { key: 'tipos',     label: 'Informações a atualizar' },
+  { key: 'posicao',   label: 'Posição na via' },
+  { key: 'descricao', label: 'Descrição' },
+]
+
+// Um registro só é considerado preenchido quando tem rede e descrição,
+// mesma regra usada pelo app de campo
+export function registroCadastroPreenchido(r) {
+  return !!(r && r.rede && (r.descricao || '').trim() !== '')
+}
+
+export function registrosCadastro(checklist) {
+  const regs = checklist?.cadastro?.registros
+  return Array.isArray(regs) ? regs : []
+}
