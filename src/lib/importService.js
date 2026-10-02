@@ -1,5 +1,32 @@
 import { importarBackup, db, APPS_ACEITOS, APP_GERENCIAL } from './db'
 
+// Reconhece o sufixo de parte no NOME do arquivo. O número da parte não vai
+// dentro do JSON — cada parte é um backup completo e válido por si só —, então
+// só pelo nome dá para saber se alguma ficou para trás.
+// Cobre as duas convenções em uso:
+//   app de campo → "…-parte-2-de-5.json"
+//   gerencial    → "…-parte2de5.json"
+const PADRAO_PARTE = /-parte-?(\d+)-?de-?(\d+)/i
+
+/**
+ * Dado os nomes dos arquivos selecionados, devolve os números das partes que
+ * faltaram. Um backup dividido só fica completo com todas as partes: cada uma
+ * carrega um pedaço das fotos, e as que faltarem simplesmente não aparecem.
+ */
+export function partesFaltando(nomes) {
+  const achadas = nomes.map(n => PADRAO_PARTE.exec(n)).filter(Boolean)
+  if (!achadas.length) return []
+
+  const total = Number(achadas[0][2])
+  // Partes de backups diferentes misturadas: não dá para afirmar nada
+  if (achadas.some(m => Number(m[2]) !== total)) return []
+
+  const presentes = new Set(achadas.map(m => Number(m[1])))
+  const faltando = []
+  for (let i = 1; i <= total; i++) if (!presentes.has(i)) faltando.push(i)
+  return faltando
+}
+
 export async function processarArquivos(arquivos) {
   const resultados = []
 

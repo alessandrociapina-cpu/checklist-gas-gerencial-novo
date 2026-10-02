@@ -1,6 +1,15 @@
-export const VERSAO = '1.4.0'
+export const VERSAO = '1.5.0'
 
 export const CHANGELOG = [
+  {
+    versao: '1.5.0',
+    data: '2026-10-02',
+    mudancas: [
+      'Compatível com os backups divididos em partes do app de campo',
+      'Aviso quando alguma parte do backup não foi selecionada na importação',
+      'Nome dos arquivos exportados alinhado ao padrão do app de campo',
+    ],
+  },
   {
     versao: '1.4.0',
     data: '2026-08-04',

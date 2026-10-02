@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { processarArquivos } from '../lib/importService'
+import { processarArquivos, partesFaltando } from '../lib/importService'
 import { TAMANHO_MAX_ARQUIVO, exportarBanco, dividirEmPartes, contarRegistros } from '../lib/db'
 import { PRESETS_QUALIDADE } from '../lib/imagem'
 
@@ -11,6 +11,7 @@ export default function ImportPage({ onImportado }) {
   const [arrastando, setArrastando] = useState(false)
   const [processando, setProcessando] = useState(false)
   const [resultados, setResultados] = useState(null)
+  const [faltando, setFaltando] = useState([])
   const inputRef = useRef()
 
   // Exportação do banco consolidado (unificação entre encarregados)
@@ -40,9 +41,13 @@ export default function ImportPage({ onImportado }) {
     if (!listaFiltrada.length) return
     setProcessando(true)
     setResultados(null)
+    setFaltando([])
     try {
       const res = await processarArquivos(listaFiltrada)
       setResultados(res)
+      // Backup dividido: avisa se alguma parte não foi selecionada, senão as
+      // fotos dela sumiriam sem nenhum sinal
+      setFaltando(partesFaltando(listaFiltrada.map(f => f.name)))
       atualizarContagem()
     } finally {
       setProcessando(false)
@@ -81,7 +86,9 @@ export default function ImportPage({ onImportado }) {
 
       const arquivos = []
       for (const parte of partes) {
-        const sufixo = partes.length > 1 ? `-parte${parte.parte}de${parte.totalPartes}` : ''
+        // Mesma convenção de nome do app de campo, para que a detecção de
+        // partes faltando funcione igual nos dois
+        const sufixo = partes.length > 1 ? `-parte-${parte.parte}-de-${parte.totalPartes}` : ''
         const nome = `gas-gerencial-consolidado${tag}-${hoje}${sufixo}.json`
         const blob = new Blob([JSON.stringify(parte)], { type: 'application/json' })
         arquivos.push({ nome, tamanho: blob.size })
@@ -194,6 +201,26 @@ export default function ImportPage({ onImportado }) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Backup dividido com partes faltando */}
+      {faltando.length > 0 && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl px-4 py-3">
+          <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div className="text-sm">
+            <p className="font-semibold text-amber-900">
+              Faltou {faltando.length === 1 ? 'a parte' : 'as partes'} {faltando.join(', ')} deste backup
+            </p>
+            <p className="text-amber-800 text-xs mt-1">
+              Um backup dividido só fica completo com todas as partes — cada uma traz um pedaço
+              das fotos. Selecione {faltando.length === 1 ? 'a parte que falta' : 'as partes que faltam'} e
+              importe também. Pode arrastar todas juntas, e reimportar as que já entraram não causa problema.
+            </p>
+          </div>
         </div>
       )}
 
